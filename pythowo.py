@@ -167,6 +167,8 @@ KEYWORDS = [
     "WETURN",
     "CONTINUWU",
     "BWEAK",
+    "import",
+    "impowt",
 ]
 
 
@@ -561,6 +563,13 @@ class BreakNode:
         self.pos_end = pos_end
 
 
+class ImportNode:
+    def __init__(self, module_name_node, pos_start, pos_end):
+        self.module_name_node = module_name_node
+        self.pos_start = pos_start
+        self.pos_end = pos_end
+
+
 #######################################
 # PAWARSE RESUWULT
 #######################################
@@ -704,6 +713,16 @@ class Parser:
             res.register_advancement()
             self.advance()
             return res.success(BreakNode(pos_start, self.current_tok.pos_start.copy()))
+
+        # support import/impowt <module>
+        if self.current_tok.type == TT_KEYWORD and self.current_tok.value.lower() in ("import", "impowt"):
+            res.register_advancement()
+            self.advance()
+            # accept a string or identifier (or expression) as module name
+            module_name_node = res.register(self.expr())
+            if res.error:
+                return res
+            return res.success(ImportNode(module_name_node, pos_start, self.current_tok.pos_start.copy()))
 
         expr = res.register(self.expr())
         if res.error:
@@ -2184,6 +2203,87 @@ class BuiltInFunction(BaseFunction):
 
     execute_run.arg_names = ["fn"]
 
+    def execute_impowt(self, exec_ctx):
+        fn = exec_ctx.symbol_table.get("fn")
+
+        if not isinstance(fn, String):
+            return RTResult().failure(
+                RTError(
+                    self.pos_start,
+                    self.pos_end,
+                    "Arguwment muwst be stwring",
+                    exec_ctx,
+                )
+            )
+
+        name = fn.value
+
+        # resolve path: if explicit file path use it, otherwise search sys.path for name + .pyowo
+        file_path = None
+        if name.endswith(".pyowo") and os.path.isfile(name):
+            file_path = name
+        else:
+            for p in sys.path:
+                candidate = os.path.join(p, name if name.endswith('.pyowo') else name + ".pyowo")
+                if os.path.isfile(candidate):
+                    file_path = candidate
+                    break
+
+        if not file_path:
+            return RTResult().failure(
+                RTError(
+                    self.pos_start,
+                    self.pos_end,
+                    f'Cannot find module "{name}"',
+                    exec_ctx,
+                )
+            )
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                script = f.read()
+        except Exception as e:
+            return RTResult().failure(
+                RTError(
+                    self.pos_start,
+                    self.pos_end,
+                    f'Failed to load scwipt "{file_path}"\n' + str(e),
+                    exec_ctx,
+                )
+            )
+
+        # execute in a fresh symbol table so module globals don't pollute global_symbol_table
+        module_st = SymbolTable(parent=global_symbol_table)
+        _, error = run(file_path, script, symbol_table=module_st)
+
+        if error:
+            # treat empty files as no-ops
+            if script.strip() == "":
+                pass
+            else:
+                return RTResult().failure(
+                    RTError(
+                        self.pos_start,
+                        self.pos_end,
+                        f'Failed to import "{name}"\n' + error.as_string(),
+                        exec_ctx,
+                    )
+                )
+
+        # copy module symbols into caller's symbol table (no prefixing)
+        for sym_name, sym_val in module_st.symbols.items():
+            try:
+                copied = sym_val.copy()
+                copied.set_context(exec_ctx)
+                exec_ctx.symbol_table.set(sym_name, copied)
+            except Exception:
+                # skip non-copyable values
+                pass
+
+        return RTResult().success(Number.null)
+
+    execute_impowt.arg_names = ["fn"]
+
 
 BuiltInFunction.print = BuiltInFunction("print")
 BuiltInFunction.print_ret = BuiltInFunction("print_ret")
@@ -2199,6 +2299,7 @@ BuiltInFunction.pop = BuiltInFunction("pop")
 BuiltInFunction.extend = BuiltInFunction("extend")
 BuiltInFunction.len = BuiltInFunction("len")
 BuiltInFunction.run = BuiltInFunction("run")
+BuiltInFunction.impowt = BuiltInFunction("impowt")
 
 
 #######################################
@@ -2539,6 +2640,92 @@ class Interpreter:
     def visit_BreakNode(self, node, context):
         return RTResult().success_break()
 
+    def visit_ImportNode(self, node, context):
+        res = RTResult()
+
+        # module name can be a string literal or an identifier (bare name)
+        name = None
+        if isinstance(node.module_name_node, StringNode):
+            name = node.module_name_node.tok.value
+        elif isinstance(node.module_name_node, VarAccessNode):
+            name = node.module_name_node.var_name_tok.value
+        else:
+            module_name_val = res.register(self.visit(node.module_name_node, context))
+            if res.should_return():
+                return res
+            if not isinstance(module_name_val, String):
+                return res.failure(
+                    RTError(
+                        node.pos_start,
+                        node.pos_end,
+                        "Impowt statement muwst take a stwring module name",
+                        context,
+                    )
+                )
+            name = module_name_val.value
+
+        # resolve path: first check same directory as current script, then sys.path
+        file_path = None
+        if name.endswith(".pyowo") and os.path.isfile(name):
+            file_path = name
+        else:
+            base_dir = None
+            try:
+                base_dir = os.path.dirname(node.pos_start.fn)
+            except Exception:
+                base_dir = None
+
+            if base_dir:
+                candidate = os.path.join(base_dir, name if name.endswith('.pyowo') else name + ".pyowo")
+                if os.path.isfile(candidate):
+                    file_path = candidate
+
+            if not file_path:
+                for p in sys.path:
+                    candidate = os.path.join(p, name if name.endswith('.pyowo') else name + ".pyowo")
+                    if os.path.isfile(candidate):
+                        file_path = candidate
+                        break
+
+        if not file_path:
+            return res.failure(
+                RTError(node.pos_start, node.pos_end, f'Cannot find module "{name}"', context)
+            )
+
+        try:
+            with open(file_path, "r", encoding="utf-8") as f:
+                script = f.read()
+        except Exception as e:
+            return res.failure(
+                RTError(
+                    node.pos_start,
+                    node.pos_end,
+                    f'Failed to load scwipt "{file_path}"\n' + str(e),
+                    context,
+                )
+            )
+
+        module_st = SymbolTable(parent=global_symbol_table)
+        _, error = run(file_path, script, symbol_table=module_st)
+
+        if error:
+            if script.strip() == "":
+                pass
+            else:
+                return res.failure(
+                    RTError(node.pos_start, node.pos_end, f'Failed to import "{name}"\n' + error.as_string(), context)
+                )
+
+        for sym_name, sym_val in module_st.symbols.items():
+            try:
+                copied = sym_val.copy()
+                copied.set_context(context)
+                context.symbol_table.set(sym_name, copied)
+            except Exception:
+                pass
+
+        return res.success(Number.null)
+
 
 #######################################
 # RUWUN
@@ -2564,9 +2751,10 @@ global_symbol_table.set("pwp", BuiltInFunction.pop)
 global_symbol_table.set("extwend", BuiltInFunction.extend)
 global_symbol_table.set("lwen", BuiltInFunction.len)
 global_symbol_table.set("rwun", BuiltInFunction.run)
+global_symbol_table.set("impowt", BuiltInFunction.impowt)
 
 
-def run(fn, text):
+def run(fn, text, symbol_table=None):
     # Genewate towokens
     lexer = Lexer(fn, text)
     tokens, error = lexer.make_tokens()
@@ -2582,7 +2770,8 @@ def run(fn, text):
     # Ruwun pwogram
     interpreter = Interpreter()
     context = Context("<program>")
-    context.symbol_table = global_symbol_table
+    # allow passing a custom symbol table (useful for imports); otherwise use global
+    context.symbol_table = symbol_table if symbol_table is not None else global_symbol_table
     result = interpreter.visit(ast.node, context)
 
     return result.value, result.error

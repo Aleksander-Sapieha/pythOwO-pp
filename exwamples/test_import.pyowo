@@ -1,0 +1,4 @@
+import fwactorial
+
+# call the factorial function from the imported module
+pwint(uwu(5))
