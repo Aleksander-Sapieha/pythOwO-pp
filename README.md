@@ -1,4 +1,4 @@
-<h1 align="center"><a href="https://youtu.be/czZmkh7CY6M">pythOwO</a></h1>
+<h1 align="center"><a href="https://youtu.be/czZmkh7CY6M">pythOwO++</a></h1>
 
 <p align="center">
 	<b>See how the original pythOwO was made <a href="https://youtu.be/czZmkh7CY6M"> (2 min video) </a></b>
@@ -13,13 +13,6 @@
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=Haddle.pyowo">Get PythOwO LangUwUage support for VSCode</a>
 </p>
-<p align="center">
-  <a href="https://pypi.org/project/PythOwO/">PythOwO on PyPi</a><br>
-</p>
-
-```bash
-pip install PythOwO
-```
 
 <h2 align="center">Uwusage</h2>
 
