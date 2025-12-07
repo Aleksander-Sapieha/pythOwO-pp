@@ -1,6 +1,6 @@
 #!/usr/bin/python3
 import os
-import pythowo
+import pythowopp
 
 while True:
     text = input("(｡･ω･｡)ﾉ♡ > ")
@@ -9,7 +9,7 @@ while True:
         continue
     if text.strip() == "":
         continue
-    result, error = pythowo.run("<stdin>", text)
+    result, error = pythowopp.run("<stdin>", text)
 
     if error:
         print(error.as_string())

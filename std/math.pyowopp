@@ -1,0 +1,7 @@
+FWUNCTION abs(x)
+    IF x < 0 THWEN
+        RETURN -x
+    EWSE
+        RETURN x
+
+pwint(abs(-5))  # This will output 5

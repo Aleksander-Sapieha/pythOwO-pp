@@ -11,7 +11,7 @@ import sys
 import os
 import types
 
-import pythowo
+import pythowopp
 
 
 class PyowoLoader(importlib.abc.Loader):
@@ -26,8 +26,8 @@ class PyowoLoader(importlib.abc.Loader):
             src = f.read()
 
         # run the .pyowo source in a fresh symbol table that inherits builtins
-        st = pythowo.SymbolTable(parent=pythowo.global_symbol_table)
-        _, error = pythowo.run(self.path, src, symbol_table=st)
+        st = pythowopp.SymbolTable(parent=pythowopp.global_symbol_table)
+        _, error = pythowopp.run(self.path, src, symbol_table=st)
         # treat empty files as valid no-ops (pyowo parser may report syntax errors on empty files)
         if error:
             if src.strip() == "":
@@ -39,32 +39,32 @@ class PyowoLoader(importlib.abc.Loader):
         def to_python(val):
             if val is None:
                 return None
-            if isinstance(val, pythowo.Number):
+            if isinstance(val, pythowopp.Number):
                 return val.value
-            if isinstance(val, pythowo.String):
+            if isinstance(val, pythowopp.String):
                 return val.value
-            if isinstance(val, pythowo.List):
+            if isinstance(val, pythowopp.List):
                 return [to_python(e) for e in val.elements]
-            if isinstance(val, pythowo.BaseFunction):
+            if isinstance(val, pythowopp.BaseFunction):
                 def fn(*args):
                     # convert python args -> pythowo Values (limited support)
                     vals = []
                     for a in args:
                         if isinstance(a, (int, float)):
-                            vals.append(pythowo.Number(a))
+                            vals.append(pythowopp.Number(a))
                         elif isinstance(a, str):
-                            vals.append(pythowo.String(a))
+                            vals.append(pythowopp.String(a))
                         elif isinstance(a, list):
                             # assume list of primitives
                             elems = []
                             for x in a:
                                 if isinstance(x, (int, float)):
-                                    elems.append(pythowo.Number(x))
+                                    elems.append(pythowopp.Number(x))
                                 elif isinstance(x, str):
-                                    elems.append(pythowo.String(x))
+                                    elems.append(pythowopp.String(x))
                                 else:
                                     raise TypeError("Unsupported list element type for .pyowo call")
-                            vals.append(pythowo.List(elems))
+                            vals.append(pythowopp.List(elems))
                         else:
                             raise TypeError("Unsupported arg type for .pyowo call")
                     res = val.execute(vals)
