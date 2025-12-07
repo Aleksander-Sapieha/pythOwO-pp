@@ -1,7 +1,6 @@
-FWUNCTION abs(x)
-    IF x < 0 THWEN
-        RETURN -x
-    EWSE
-        RETURN x
+pwease PI = 3.14159265358979323846
+pwease E = 2.71828182845904523536
 
-pwint(abs(-5))  # This will output 5
+FWUNCTION abs(x) -> IF x < 0 THWEN WETURN -x EWSE WETURN x
+FWUNCTION max(a, b) -> IF a > b THWEN WETURN a EWSE WETURN b
+FWUNCTION min(a, b) -> IF a < b THWEN WETURN a EWSE WETURN b

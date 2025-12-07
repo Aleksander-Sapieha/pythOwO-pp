@@ -390,10 +390,13 @@ class Lexer:
     def skip_comment(self):
         self.advance()
 
-        while self.current_char != "\n":
+        # advance until end of line or EOF
+        while self.current_char is not None and self.current_char != "\n":
             self.advance()
 
-        self.advance()
+        # if we're at a newline, advance past it
+        if self.current_char == "\n":
+            self.advance()
 
 
 #######################################
@@ -2218,15 +2221,19 @@ class BuiltInFunction(BaseFunction):
 
         name = fn.value
 
-        # resolve path: if explicit file path use it, otherwise search sys.path for name + .pyowo
+        # resolve path: support both .pyowo and .pyowopp extensions; if explicit path provided, use it
+        EXTS = [".pyowo", ".pyowopp"]
         file_path = None
-        if name.endswith(".pyowo") and os.path.isfile(name):
+        if any(name.endswith(ext) and os.path.isfile(name) for ext in EXTS):
             file_path = name
         else:
             for p in sys.path:
-                candidate = os.path.join(p, name if name.endswith('.pyowo') else name + ".pyowo")
-                if os.path.isfile(candidate):
-                    file_path = candidate
+                for ext in EXTS:
+                    candidate = os.path.join(p, name if name.endswith(ext) else name + ext)
+                    if os.path.isfile(candidate):
+                        file_path = candidate
+                        break
+                if file_path:
                     break
 
         if not file_path:
@@ -2676,15 +2683,20 @@ class Interpreter:
                 base_dir = None
 
             if base_dir:
-                candidate = os.path.join(base_dir, name if name.endswith('.pyowo') else name + ".pyowo")
-                if os.path.isfile(candidate):
-                    file_path = candidate
+                for ext in (".pyowo", ".pyowopp"):
+                    candidate = os.path.join(base_dir, name if name.endswith(ext) else name + ext)
+                    if os.path.isfile(candidate):
+                        file_path = candidate
+                        break
 
             if not file_path:
                 for p in sys.path:
-                    candidate = os.path.join(p, name if name.endswith('.pyowo') else name + ".pyowo")
-                    if os.path.isfile(candidate):
-                        file_path = candidate
+                    for ext in (".pyowo", ".pyowopp"):
+                        candidate = os.path.join(p, name if name.endswith(ext) else name + ext)
+                        if os.path.isfile(candidate):
+                            file_path = candidate
+                            break
+                    if file_path:
                         break
 
         if not file_path:

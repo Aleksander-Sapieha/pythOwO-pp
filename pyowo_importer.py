@@ -1,8 +1,8 @@
 """
-Simple importer for `.pyowo` files.
+Simple importer for `.pyowo` and `.pyowopp` files.
 
-Usage: place this file on PYTHONPATH (same dir as `pythowo.py`) or import it from your program.
-Then `import foo` will search for `foo.pyowo` on sys.path and execute it with the pythowo interpreter.
+Usage: place this file on PYTHONPATH (same dir as `pythowopp.py`) or import it from your program.
+Then `import foo` will search for `foo.pyowo` or `foo.pyowopp` on sys.path and execute it with the pythowopp interpreter.
 Top-level variables (numbers, strings, lists, and functions) are exposed as Python attributes.
 """
 import importlib.abc
@@ -87,17 +87,32 @@ class PyowoLoader(importlib.abc.Loader):
         module.__loader__ = self
 
 
+EXTS = [".pyowo", ".pyowopp"]
+
+
 class PyowoFinder(importlib.abc.MetaPathFinder):
     def find_spec(self, fullname, path, target=None):
         name = fullname.rpartition(".")[-1]
         search_paths = path or sys.path
         for entry in search_paths:
-            candidate = os.path.join(entry, name + ".pyowo")
-            if os.path.isfile(candidate):
-                loader = PyowoLoader(candidate)
-                spec = importlib.util.spec_from_loader(fullname, loader)
-                spec.origin = candidate
-                return spec
+            # if name already has a supported extension, try it directly
+            for ext in EXTS:
+                if name.endswith(ext):
+                    candidate = os.path.join(entry, name)
+                    if os.path.isfile(candidate):
+                        loader = PyowoLoader(candidate)
+                        spec = importlib.util.spec_from_loader(fullname, loader)
+                        spec.origin = candidate
+                        return spec
+
+            # otherwise try with each supported extension
+            for ext in EXTS:
+                candidate = os.path.join(entry, name + ext)
+                if os.path.isfile(candidate):
+                    loader = PyowoLoader(candidate)
+                    spec = importlib.util.spec_from_loader(fullname, loader)
+                    spec.origin = candidate
+                    return spec
         return None
 
 
