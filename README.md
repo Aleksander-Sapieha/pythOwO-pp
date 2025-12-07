@@ -1,7 +1,7 @@
 <h1 align="center"><a href="https://youtu.be/czZmkh7CY6M">pythOwO</a></h1>
 
 <p align="center">
-	<b>See how pythOwO was made <a href="https://youtu.be/czZmkh7CY6M"> (2 min video) </a></b>
+	<b>See how the original pythOwO was made <a href="https://youtu.be/czZmkh7CY6M"> (2 min video) </a></b>
 </p>
 
 [![](https://raw.githubusercontent.com/virejdasani/pythOwO/main/aswets/imwages/pythowo-banner.png)](https://www.youtube.com/watch?v=czZmkh7CY6M)
@@ -136,6 +136,11 @@ This is pythOwO
 (｡･ω･｡)ﾉ♡ > cwear
 ```
 
+<h3 align="center">Import</h3>
+
+```
+import [package]
+```
 
 <h2 align="center">Contribuwuting</h2>
 <p align="center">All contribuwutions are welcome, just make a puwull request!</p>
@@ -159,4 +164,3 @@ python -m unittest
 
 > Thank youwu @Tulip-0333 for helping with putting PythOwO up on PyPi
 
-<h5 align="left">uwu</h5>
