@@ -1,4 +1,4 @@
-<h1 align="center"><a href="https://youtu.be/czZmkh7CY6M">pythOwO++</a></h1>
+<h1 align="center">pythOwO++</h1>
 
 <p align="center">
 	<b>See how the original pythOwO was made <a href="https://youtu.be/czZmkh7CY6M"> (2 min video) </a></b>
