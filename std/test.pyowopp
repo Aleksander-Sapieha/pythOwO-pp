@@ -1,0 +1,5 @@
+pwease a = 3
+
+pwease a = 10
+
+pwint(a)

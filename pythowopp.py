@@ -148,6 +148,7 @@ TT_COMMA = "COMMA"
 TT_ARROW = "ARROW"
 TT_NEWLINE = "NEWLINE"
 TT_EOF = "EOF"
+TT_COLON = "COLON"
 
 KEYWORDS = [
     "pwease",  # vawar
@@ -169,6 +170,11 @@ KEYWORDS = [
     "BWEAK",
     "import",
     "impowt",
+    "int",
+    "float",
+    "stwing",
+    "bool",
+    "list",
 ]
 
 
@@ -255,6 +261,9 @@ class Lexer:
                 self.advance()
             elif self.current_char == "]":
                 tokens.append(Token(TT_RSQUARE, pos_start=self.pos))
+                self.advance()
+            elif self.current_char == ":":
+                tokens.append(Token(TT_COLON, pos_start=self.pos))
                 self.advance()
             elif self.current_char == "!":
                 token, error = self.make_not_equals()
@@ -397,6 +406,7 @@ class Lexer:
         # if we're at a newline, advance past it
         if self.current_char == "\n":
             self.advance()
+    
 
 
 #######################################
@@ -446,10 +456,23 @@ class VarAssignNode:
     def __init__(self, var_name_tok, value_node):
         self.var_name_tok = var_name_tok
         self.value_node = value_node
+        self.type_tok = None
 
         self.pos_start = self.var_name_tok.pos_start
         self.pos_end = self.value_node.pos_end
 
+    def set_type(self, type_tok):
+        self.type_tok = type_tok
+        # adjust pos_end to include type token if needed
+        self.pos_end = type_tok.pos_end
+
+class VarTypeNode:
+    def __init__(self, var_name_tok, type_tok):
+        self.var_name_tok = var_name_tok
+        self.type_tok = type_tok
+
+        self.pos_start = self.var_name_tok.pos_start
+        self.pos_end = self.type_tok.pos_end
 
 class BinOpNode:
     def __init__(self, left_node, op_tok, right_node):
@@ -757,6 +780,21 @@ class Parser:
             var_name = self.current_tok
             res.register_advancement()
             self.advance()
+            if self.current_tok.type == TT_COLON:
+                res.register_advancement()
+                self.advance()
+                if self.current_tok.matches(TT_KEYWORD, "int") or self.current_tok.matches(TT_KEYWORD, "float") or self.current_tok.matches(TT_KEYWORD, "stwing") or self.current_tok.matches(TT_KEYWORD, "bool") or self.current_tok.matches(TT_KEYWORD, "list"):
+                    var_type_tok = self.current_tok
+                    res.register_advancement()
+                    self.advance()
+                else:
+                    return res.failure(
+                        InvalidSyntaxError(
+                            self.current_tok.pos_start,
+                            self.current_tok.pos_end,
+                            "Expwected type afta cowon (int, float, stwing, bool)",
+                        )
+                    )
 
             if self.current_tok.type != TT_EQ:
                 return res.failure(
@@ -772,7 +810,12 @@ class Parser:
             expr = res.register(self.expr())
             if res.error:
                 return res
-            return res.success(VarAssignNode(var_name, expr))
+            # if a var_type_tok was parsed, return a VarTypeNode followed by assignment
+            # create assignment node, attach type token if present
+            assign_node = VarAssignNode(var_name, expr)
+            if 'var_type_tok' in locals():
+                assign_node.set_type(var_type_tok)
+            return res.success(assign_node)
 
         node = res.register(
             self.bin_op(self.comp_expr, ((TT_KEYWORD, "AND"), (TT_KEYWORD, "OR")))
@@ -2331,6 +2374,7 @@ class SymbolTable:
     def __init__(self, parent=None):
         self.symbols = {}
         self.parent = parent
+        self.types = {}
 
     def get(self, name):
         value = self.symbols.get(name, None)
@@ -2340,6 +2384,16 @@ class SymbolTable:
 
     def set(self, name, value):
         self.symbols[name] = value
+
+    def set_type(self, name, type_tok):
+        # store the declared type token (e.g. 'int', 'stwing')
+        self.types[name] = type_tok
+
+    def get_type(self, name):
+        t = self.types.get(name, None)
+        if t is None and self.parent:
+            return self.parent.get_type(name)
+        return t
 
     def remove(self, name):
         del self.symbols[name]
@@ -2413,7 +2467,86 @@ class Interpreter:
         if res.should_return():
             return res
 
+        # Determine the declared type: prefer explicit annotation on this node,
+        # otherwise fall back to any previously-declared type in the symbol table.
+        declared_tok = None
+        if hasattr(node, "type_tok") and node.type_tok:
+            declared_tok = node.type_tok
+        else:
+            declared_tok = context.symbol_table.get_type(var_name)
+
+        # If a declared type exists, validate the value against it
+        if declared_tok:
+            # int: must be Number and integer-valued
+            if declared_tok.matches(TT_KEYWORD, "int"):
+                if not isinstance(value, Number):
+                    return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'int' but got '{type(value).__name__}'", context))
+                if isinstance(value.value, float) and not float(value.value).is_integer():
+                    return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'int' but got non-integer number", context))
+            # float: must be Number
+            elif declared_tok.matches(TT_KEYWORD, "float"):
+                if not isinstance(value, Number):
+                    return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'float' but got '{type(value).__name__}'", context))
+            elif declared_tok.matches(TT_KEYWORD, "stwing"):
+                if not isinstance(value, String):
+                    return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'stwing' but got '{type(value).__name__}'", context))
+            elif declared_tok.matches(TT_KEYWORD, "list"):
+                if not isinstance(value, List):
+                    return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'list' but got '{type(value).__name__}'", context))
+            elif declared_tok.matches(TT_KEYWORD, "bool"):
+                if not isinstance(value, Number):
+                    return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'bool' but got '{type(value).__name__}'", context))
+
+        # store value
         context.symbol_table.set(var_name, value)
+
+        # if this assignment included an explicit type annotate the name for future checks
+        if hasattr(node, "type_tok") and node.type_tok:
+            try:
+                context.symbol_table.set_type(var_name, node.type_tok)
+            except Exception:
+                pass
+
+        return res.success(value)
+
+    def visit_VarTypeNode(self, node, context):
+        # VarTypeNode is no longer used by the parser (type is attached to VarAssignNode),
+        # but keep a simple compatibility implementation: evaluate the value, set the declared
+        # type in the symbol table, and store the value.
+        res = RTResult()
+        var_name = node.var_name_tok.value
+        value = res.register(self.visit(node.value_node, context))
+        if res.should_return():
+            return res
+
+        if not node.type_tok:
+            context.symbol_table.set(var_name, value)
+            return res.success(value)
+
+        # basic validation (reuse VarAssign logic expectations)
+        declared_tok = node.type_tok
+        if declared_tok.matches(TT_KEYWORD, "int"):
+            if not isinstance(value, Number) or (isinstance(value.value, float) and not float(value.value).is_integer()):
+                return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'int' but got '{type(value).__name__}'", context))
+        elif declared_tok.matches(TT_KEYWORD, "float"):
+            if not isinstance(value, Number):
+                return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'float' but got '{type(value).__name__}'", context))
+        elif declared_tok.matches(TT_KEYWORD, "stwing"):
+            if not isinstance(value, String):
+                return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'stwing' but got '{type(value).__name__}'", context))
+        elif declared_tok.matches(TT_KEYWORD, "list"):
+            if not isinstance(value, List):
+                return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'list' but got '{type(value).__name__}'", context))
+        elif declared_tok.matches(TT_KEYWORD, "bool"):
+            if not isinstance(value, Number):
+                return res.failure(RTError(node.pos_start, node.pos_end, f"TypeError: Expected 'bool' but got '{type(value).__name__}'", context))
+
+        context.symbol_table.set(var_name, value)
+        try:
+            context.symbol_table.set_type(var_name, declared_tok)
+        except Exception:
+            pass
+
         return res.success(value)
 
     def visit_BinOpNode(self, node, context):
